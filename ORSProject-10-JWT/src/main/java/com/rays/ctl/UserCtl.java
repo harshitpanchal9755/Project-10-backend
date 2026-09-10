@@ -125,6 +125,7 @@ public class UserCtl extends BaseCtl<UserForm, UserDTO, UserServiceInt> {
 		ORSResponse res = new ORSResponse();
 
 		res.addResult("imageId", imageId);
+
 		return res;
 	}
 
