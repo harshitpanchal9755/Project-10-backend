@@ -14,7 +14,7 @@ public abstract class BaseDTO implements DropdownList {
 
 	@Id
 	@GeneratedValue(generator = "ncsPk")
-	@GenericGenerator(name = "ncsPk", strategy = "native")
+	@GenericGenerator(name = "ncsPk", strategy = "native") ///"Hibernate ko bolo ki primary key generate karne ke liye database ka native/automatic mechanism use karo."
 	@Column(name = "id", unique = true, nullable = false)
 	protected Long id;
 
@@ -67,7 +67,7 @@ public abstract class BaseDTO implements DropdownList {
 	}
 
 	public void setCreatedDatetime(Timestamp createdDatetime) {
-		this.createdDatetime = createdDatetime;
+		this.createdDatetime = createdDatetime;    
 	}
 
 	public Timestamp getModifiedDatetime() {
