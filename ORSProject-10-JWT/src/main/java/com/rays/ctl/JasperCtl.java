@@ -12,33 +12,44 @@ import javax.servlet.http.HttpServletResponse;
 
 
 import org.hibernate.engine.jdbc.connections.spi.ConnectionProvider;
-
+import org.springframework.http.MediaType;
+import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RestController;
 import org.hibernate.SessionFactory;
 
+import net.sf.jasperreports.engine.JRException;
 import net.sf.jasperreports.engine.JasperCompileManager;
 import net.sf.jasperreports.engine.JasperExportManager;
 import net.sf.jasperreports.engine.JasperFillManager;
 import net.sf.jasperreports.engine.JasperPrint;
 import net.sf.jasperreports.engine.JasperReport;
 
+@Transactional
+@RestController
+@RequestMapping("/jasper")
 public class JasperCtl {
 	
 	private EntityManager entityManager;
 	private SessionFactory sessionfactory;
 	
-	public void generateReport(HttpServletResponse response) throws IOException, SQLException  {
+	@GetMapping(value = "/report", produces = MediaType.APPLICATION_PDF_VALUE)
+	public void generateReport(HttpServletResponse response) throws JRException, IOException, SQLException  {
 		
 		System.out.println("*****************Jasper Report Start***************");
 		
 		Connection conn = null;
 		
 		try {
+			// Load JRXML file from resources
 			InputStream input = getClass().getResourceAsStream("/reports/Project10.jrxml");
 			
 			if(input == null) {
 				throw new RuntimeException("JRXML file not found in resources/reports");
 			}
 			
+			// Compile JRXML to JasperReport
 			JasperReport jasperReport = JasperCompileManager.compileReport(input);
 			
 

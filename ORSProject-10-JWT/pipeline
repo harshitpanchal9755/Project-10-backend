@@ -1,0 +1,235 @@
+pipeline {
+    agent any
+
+    stages {
+
+        stage('Clean Workspace') {
+            steps {
+                deleteDir()
+            }
+        }
+
+        stage('Clone Backend Repo') {
+            steps {
+                dir('backend') {
+                    git branch: 'main',
+                    url: 'https://github.com/harshitpanchal9755/Project-10-backend.git'
+                }
+            }
+        }
+
+        stage('Clone Frontend Repo') {
+            steps {
+                dir('frontend') {
+                    git branch: 'main',
+                    url: 'https://github.com/harshitpanchal9755/Project-10-Frontend.git'
+                }
+            }
+        }
+
+        stage('Build Angular') {
+            steps {
+                dir('frontend') {
+                    bat 'npm install --legacy-peer-deps'
+                    bat 'npm run build -- --output-path=dist/app'
+                }
+            }
+        }
+
+        stage('Verify Angular Build') {
+            steps {
+                dir('frontend') {
+                    bat 'dir dist\\app'
+                }
+            }
+        }
+
+        stage('Build Spring Boot') {
+            steps {
+                dir('backend/ORSProject-10-JWT') {
+                    bat '"C:\\ProgramData\\Jenkins\\.jenkins\\tools\\hudson.tasks.Maven_MavenInstallation\\Maven\\bin\\mvn.cmd" clean package -DskipTests'
+                }
+            }
+        }
+
+        stage('Prepare Backend Jar') {
+            steps {
+                bat 'copy /Y backend\\ORSProject-10-JWT\\target\\ORSProject-10-JWT-0.0.1-SNAPSHOT.jar backend\\ORSProject-10-JWT-0.0.1-SNAPSHOT.jar'
+            }
+        }
+
+        stage('Create Docker Compose') {
+            steps {
+                bat '''
+                    (
+                    echo services:
+                    echo.
+                    echo   frontend:
+                    echo     container_name: frontend-container
+                    echo     build:
+                    echo       context: ./frontend
+                    echo       dockerfile: Dockerfile
+                    echo     ports:
+                    echo       - "4200:80"
+                    echo     depends_on:
+                    echo       - backend
+                    echo     restart: unless-stopped
+                    echo.
+                    echo   backend:
+                    echo     container_name: backend-container
+                    echo     build:
+                    echo       context: ./backend
+                    echo       dockerfile: Dockerfile
+                    echo     ports:
+                    echo       - "8080:8080"
+                    echo     depends_on:
+                    echo       - mysql
+                    echo     restart: unless-stopped
+                    echo.
+                    echo   mysql:
+                    echo     container_name: mysql-container
+                    echo     image: mysql:8.0
+                    echo     environment:
+                    echo       MYSQL_ROOT_PASSWORD: root
+                    echo       MYSQL_DATABASE: ors_p10
+                    echo     ports:
+                    echo       - "3307:3306"
+                    echo     volumes:
+                    echo       - mysql_data:/var/lib/mysql
+                    echo     restart: unless-stopped
+                    echo.
+                    echo volumes:
+                    echo   mysql_data:
+                    ) > docker-compose.yml
+                '''
+            }
+        }
+
+        stage('Create Backend Dockerfile') {
+            steps {
+                bat '''
+                    (
+                    echo FROM eclipse-temurin:11-jdk
+                    echo.
+                    echo WORKDIR /app
+                    echo.
+                    echo COPY ORSProject-10-JWT-0.0.1-SNAPSHOT.jar app.jar
+                    echo.
+                    echo EXPOSE 8080
+                    echo.
+                    echo CMD ["java", "-jar", "app.jar"]
+                    ) > backend\\Dockerfile
+                '''
+            }
+        }
+
+        stage('Create Frontend Dockerfile') {
+            steps {
+                bat '''
+                    (
+                    echo FROM nginx:alpine
+                    echo.
+                    echo COPY dist/app/ /usr/share/nginx/html/
+                    echo.
+                    echo EXPOSE 80
+                    echo.
+                    echo CMD ["nginx", "-g", "daemon off;"]
+                    ) > frontend\\Dockerfile
+                '''
+            }
+        }
+
+        stage('Verify Docker Files') {
+            steps {
+                bat '''
+                    echo ==========================================
+                    echo VERIFY DOCKER FILES
+                    echo ==========================================
+
+                    if not exist docker-compose.yml (
+                        echo docker-compose.yml NOT FOUND
+                        exit /b 1
+                    )
+
+                    if not exist backend\\Dockerfile (
+                        echo Backend Dockerfile NOT FOUND
+                        exit /b 1
+                    )
+
+                    if not exist frontend\\Dockerfile (
+                        echo Frontend Dockerfile NOT FOUND
+                        exit /b 1
+                    )
+
+                    if not exist frontend\\dist\\app (
+                        echo Angular dist/app NOT FOUND
+                        exit /b 1
+                    )
+
+                    if not exist backend\\ORSProject-10-JWT-0.0.1-SNAPSHOT.jar (
+                        echo Backend JAR NOT FOUND
+                        exit /b 1
+                    )
+
+                    echo ALL DOCKER FILES VERIFIED
+                '''
+            }
+        }
+
+        stage('Remove Old Containers') {
+            steps {
+                bat '''
+                    echo ==========================================
+                    echo REMOVE OLD CONTAINERS
+                    echo ==========================================
+
+                    docker rm -f mysql-container 2>nul
+                    docker rm -f backend-container 2>nul
+                    docker rm -f frontend-container 2>nul
+
+                    echo.
+                    echo OLD CONTAINERS REMOVED
+                '''
+            }
+        }
+
+        stage('Build Docker Images') {
+            steps {
+                bat '''
+                    echo ==========================================
+                    echo BUILD DOCKER IMAGES
+                    echo ==========================================
+
+                    docker compose -f docker-compose.yml build --no-cache
+                '''
+            }
+        }
+
+        stage('Run Containers') {
+            steps {
+                bat '''
+                    echo ==========================================
+                    echo RUN CONTAINERS
+                    echo ==========================================
+
+                    docker compose -f docker-compose.yml up -d --force-recreate
+                '''
+            }
+        }
+
+        stage('Check Containers') {
+            steps {
+                bat '''
+                    echo ==========================================
+                    echo CHECK CONTAINERS
+                    echo ==========================================
+
+                    docker ps
+
+                    echo.
+                    docker compose -f docker-compose.yml ps
+                '''
+            }
+        }
+    }
+}

@@ -63,7 +63,7 @@ public class JWTUtil {
 		String payloadJson = decode(parts[1]);
 		String tokenLoginId = extractField(payloadJson, "sub");
 		String expectedSignature = sign(parts[0] + "." + parts[1], jwtSecret);
-
+ 
 		if (!expectedSignature.equals(parts[2])) {
 			throw new Exception("JWT signature does not match");
 		}
