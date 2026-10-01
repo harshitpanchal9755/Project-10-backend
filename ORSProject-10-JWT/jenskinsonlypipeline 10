@@ -1,0 +1,140 @@
+pipeline {
+
+    agent any
+
+    stages {
+
+        stage('Clean Workspace') {
+            steps {
+                deleteDir()
+            }
+        }
+
+        stage('Clone Backend Repo') {
+            steps {
+                dir('backend') {
+                    git branch: 'main',
+                        url: 'https://github.com/harshitpanchal9755/Project-10-backend.git'
+                }
+            }
+        }
+
+        stage('Clone Frontend Repo') {
+            steps {
+                dir('frontend') {
+                    git branch: 'main',
+                        url: 'https://github.com/harshitpanchal9755/Project-10-frontend.git'
+                }
+            }
+        }
+
+        stage('Build Angular') {
+            steps {
+                dir('frontend') {
+                    bat 'npm install --legacy-peer-deps'
+                    bat 'npm run build -- --output-path=dist/app'
+                }
+            }
+        }
+
+        stage('Verify Angular Build') {
+            steps {
+                dir('frontend') {
+                    bat 'dir dist\\app'
+                }
+            }
+        }
+
+        stage('Build Spring Boot') {
+            steps {
+                dir('backend\\ORSProject-10-JWT') {
+                    bat '"C:\\ProgramData\\Jenkins\\.jenkins\\tools\\hudson.tasks.Maven_MavenInstallation\\Maven\\bin\\mvn.cmd" clean package -DskipTests'
+                }
+            }
+        }
+
+        stage('Prepare Backend Jar') {
+            steps {
+                bat 'copy /Y backend\\ORSProject-10-JWT\\target\\ORSProject-10-JWT-0.0.1-SNAPSHOT.jar backend\\ORSProject-10-JWT-0.0.1-SNAPSHOT.jar'
+            }
+        }
+
+      stage('Start MySQL') {
+    steps {
+        bat '''
+            echo ==========================================
+            echo CHECK MYSQL
+            echo ==========================================
+
+            net start MySQL80 >nul 2>&1
+
+            if %ERRORLEVEL% EQU 0 (
+                echo MySQL started successfully
+            ) else (
+                echo MySQL is already running
+            )
+
+            exit /b 0
+        '''
+    }
+}
+       stage('Run Backend') {
+    steps {
+        bat '''
+            echo ==========================================
+            echo START SPRING BOOT
+            echo ==========================================
+
+            cd /d "%WORKSPACE%\\backend\\ORSProject-10-JWT"
+
+            start "Spring Boot Backend" /B cmd /c "java -jar target\\ORSProject-10-JWT-0.0.1-SNAPSHOT.jar > backend.log 2>&1"
+
+            ping 127.0.0.1 -n 16 >nul
+
+            echo.
+            echo SPRING BOOT START COMMAND COMPLETED
+            echo.
+        '''
+    }
+}
+       stage('Run Angular') {
+    steps {
+        bat '''
+            echo ==========================================
+            echo START ANGULAR
+            echo ==========================================
+
+            cd /d "%WORKSPACE%\\frontend"
+
+            start "Angular Frontend" /B cmd /c "npm start -- --host 0.0.0.0 > angular.log 2>&1"
+
+            ping 127.0.0.1 -n 16 >nul
+
+            echo.
+            echo ANGULAR START COMMAND COMPLETED
+            echo.
+        '''
+    }
+}
+
+        stage('Check Application') {
+            steps {
+                bat '''
+                    echo ==========================================
+                    echo APPLICATION STATUS
+                    echo ==========================================
+
+                    echo.
+                    echo MySQL   : localhost:3306
+                    echo Backend : http://localhost:8080
+                    echo Frontend: http://localhost:4200
+
+                    echo.
+                    echo ==========================================
+                    echo JENKINS DEPLOYMENT COMPLETED
+                    echo ==========================================
+                '''
+            }
+        }
+    }
+}
