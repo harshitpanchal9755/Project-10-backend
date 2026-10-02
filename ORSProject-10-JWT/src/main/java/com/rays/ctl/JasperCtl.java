@@ -1,5 +1,6 @@
 package com.rays.ctl;
 import java.io.IOException;
+
 import java.io.InputStream;
 
 import java.sql.Connection;
@@ -8,6 +9,7 @@ import java.util.HashMap;
 import java.util.Map;
 
 import javax.persistence.EntityManager;
+import javax.persistence.PersistenceContext;
 import javax.servlet.http.HttpServletResponse;
 
 
@@ -29,29 +31,28 @@ import net.sf.jasperreports.engine.JasperReport;
 @Transactional
 @RestController
 @RequestMapping("/jasper")
+
 public class JasperCtl {
-	
+	@PersistenceContext
 	private EntityManager entityManager;
 	private SessionFactory sessionfactory;
-	
 	@GetMapping(value = "/report", produces = MediaType.APPLICATION_PDF_VALUE)
-	public void generateReport(HttpServletResponse response) throws JRException, IOException, SQLException  {
-		
-		System.out.println("*****************Jasper Report Start***************");
-		
-		Connection conn = null;
-		
+	public void generateReport(HttpServletResponse response) throws JRException, IOException, SQLException {
+
+		System.out.println("******** Jasper Report Start ********");
+
+		Connection con = null;
+
 		try {
 			// Load JRXML file from resources
 			InputStream input = getClass().getResourceAsStream("/reports/Project10.jrxml");
-			
-			if(input == null) {
+
+			if (input == null) {
 				throw new RuntimeException("JRXML file not found in resources/reports");
 			}
-			
+
 			// Compile JRXML to JasperReport
 			JasperReport jasperReport = JasperCompileManager.compileReport(input);
-			
 
 			// Set parameters for report
 			Map<String, Object> params = new HashMap<>();
@@ -60,11 +61,11 @@ public class JasperCtl {
 			// Get DB connection from Hibernate
 			sessionfactory = entityManager.getEntityManagerFactory().unwrap(SessionFactory.class);
 
-			conn = sessionfactory.getSessionFactoryOptions().getServiceRegistry().getService(ConnectionProvider.class)
+			con = sessionfactory.getSessionFactoryOptions().getServiceRegistry().getService(ConnectionProvider.class)
 					.getConnection();
 
 			// Fill report with data
-			JasperPrint jasperPrint = JasperFillManager.fillReport(jasperReport, params, conn);
+			JasperPrint jasperPrint = JasperFillManager.fillReport(jasperReport, params, con);
 
 			// Export report to PDF
 			byte[] pdf = JasperExportManager.exportReportToPdf(jasperPrint);
@@ -80,14 +81,11 @@ public class JasperCtl {
 			System.out.println("******** Report Generated ********");
 
 		} catch (Exception e) {
-		    e.printStackTrace();
-		    response.setStatus(HttpServletResponse.SC_INTERNAL_SERVER_ERROR);
-		    response.setContentType("text/plain");
-		    response.getWriter().write(e.getMessage());
+			e.printStackTrace();
 		} finally {
 			// Close DB connection
-			if (conn != null) {
-				conn.close();
+			if (con != null) {
+				con.close();
 			}
 		}
 	}

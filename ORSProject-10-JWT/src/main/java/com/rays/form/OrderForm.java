@@ -14,11 +14,14 @@ public class OrderForm extends BaseForm {
 
 	@NotEmpty(message = "OrderName is Required")
 	private String orderName;
-	@NotEmpty(message = "Amount is Required")
+	
+	@NotNull(message = "Amount is Required")
 	@Min(value = 1, message = "Amount must be greater than 0")
 	private Double amount;
+	
 	@NotEmpty(message = "Status is Required")
 	private String status;
+	
 	@NotNull(message = "OrderDate is Required")
 	private Date orderDate;
 
@@ -34,7 +37,7 @@ public class OrderForm extends BaseForm {
 		return amount;
 	}
 
-	public void setAmount(double amount) {
+	public void setAmount(Double amount) {
 		this.amount = amount;
 	}
 
