@@ -9,9 +9,11 @@ import com.rays.dto.VehicleDTO;
 public class VehicleForm extends BaseForm {
 	@NotEmpty(message = "VehicleName is Required")
 	private String vehicleName;
-	@NotEmpty(message = "Message is Required")
-	private String model;
+	
 	@NotEmpty(message = "Model is Required")
+	private String model;
+	
+	@NotEmpty(message = "Color is Required")
 	private String color;
 
 	public String getVehicleName() {
