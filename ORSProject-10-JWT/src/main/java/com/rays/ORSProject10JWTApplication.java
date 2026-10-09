@@ -13,11 +13,9 @@ import com.rays.common.FrontCtl;
 @SpringBootApplication
 public class ORSProject10JWTApplication {
 
-	@Autowired
-	private FrontCtl frontCtl;
-
 	public static void main(String[] args) {
 		SpringApplication.run(ORSProject10JWTApplication.class, args);
+		System.out.println("ORSProject10JWTApplication Started Successfully");
 	}
 
 	@Bean
