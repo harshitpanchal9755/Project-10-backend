@@ -1,235 +1,338 @@
+
 pipeline {
     agent any
-    
+
     stages {
 
-        stage('Clean Workspace') {
+        stage('1. Clean Workspace') {
             steps {
+                echo 'Cleaning workspace...'
                 deleteDir()
             }
         }
 
-        stage('Clone Backend Repo') {
+        stage('2. Clone Backend Repo') {
             steps {
-                dir('backend') {
-                    git branch: 'main',
-                    url: 'https://github.com/harshitpanchal9755/Project-10-backend.git'
+               bat '''
+                    git clone https://github.com/harshitpanchal9755/Project-10-backend.git backend
+                    if errorlevel 1 exit /b 1
+                '''
+            }
+        }
+
+        stage('3. Clone Frontend Repo') {
+            steps {
+                bat '''
+                    git clone https://github.com/harshitpanchal9755/Project-10-frontend.git frontend
+                    if errorlevel 1 exit /b 1
+                '''
+            }
+        }
+
+        stage('4. Locate Angular Project') {
+            steps {
+                bat '''
+                    echo Searching Angular project...
+
+                    if exist "frontend\\angular.json" (
+                        echo Angular project found in frontend
+                    ) else if exist "frontend\\angular-10\\angular.json" (
+                        echo Angular project found in frontend\\angular-10
+                    ) else (
+                        echo ERROR: angular.json not found
+                        echo Checking frontend files...
+                        dir frontend
+                        exit /b 1
+                    )
+                '''
+            }
+        }
+
+        stage('5. Angular Build') {
+            steps {
+                script {
+                    if (fileExists('frontend/angular.json')) {
+                        dir('frontend') {
+                            bat '''
+                                call npm install --legacy-peer-deps
+                                if errorlevel 1 exit /b 1
+
+                                call npm run build -- --output-path=dist/app
+                                if errorlevel 1 exit /b 1
+                            '''
+                        }
+                    } else if (fileExists('frontend/angular-10/angular.json')) {
+                        dir('frontend/angular-10') {
+                            bat '''
+                                call npm install --legacy-peer-deps
+                                if errorlevel 1 exit /b 1
+
+                                call npm run build -- --output-path=dist/app
+                                if errorlevel 1 exit /b 1
+                            '''
+                        }
+                    } else {
+                        error('Angular angular.json file not found')
+                    }
                 }
             }
         }
 
-        stage('Clone Frontend Repo') {
+        stage('6. Verify Angular Build') {
             steps {
-                dir('frontend') {
-                    git branch: 'main',
-                    url: 'https://github.com/harshitpanchal9755/Project-10-Frontend.git'
+                script {
+                    if (fileExists('frontend/dist/app/index.html')) {
+                        echo 'Angular build verified'
+                    } else if (fileExists('frontend/angular-10/dist/app/index.html')) {
+                        echo 'Angular build verified'
+                    } else {
+                        bat 'dir frontend /s'
+                        error('Angular index.html not found. Check Angular Build console output.')
+                    }
                 }
             }
         }
 
-        stage('Build Angular') {
+stage('7. Spring Boot Build') {
+    steps {
+        dir('backend/ORSProject-10-JWT') {
+            bat '''
+                echo ===== CHECK PROJECT =====
+                cd
+                dir
+                if not exist pom.xml (
+                    echo ERROR: pom.xml not found
+                    exit /b 1
+                )
+
+                echo ===== MAVEN BUILD =====
+                call "C:\\ProgramData\\Jenkins\\.jenkins\\tools\\hudson.tasks.Maven_MavenInstallation\\Maven\\bin\\mvn.cmd" clean package -DskipTests
+
+                if errorlevel 1 exit /b 1
+
+                echo ===== CHECK JAR =====
+                dir target\\*.jar
+            '''
+        }
+    }
+}
+
+stage('8. Prepare Backend JAR') {
+    steps {
+        bat '''
+            echo ==============================
+            echo PREPARE BACKEND JAR
+            echo ==============================
+
+            if not exist "backend\\ORSProject-10-JWT\\target" (
+                echo ERROR: Target folder not found
+                exit /b 1
+            )
+
+            echo Checking generated JAR...
+            dir /s /b "backend\\ORSProject-10-JWT\\target\\*.jar"
+
+            if exist "backend\\ORSProject-10-JWT\\target\\ORSProject-10-JWT-0.0.1-SNAPSHOT.jar" (
+                copy /Y "backend\\ORSProject-10-JWT\\target\\ORSProject-10-JWT-0.0.1-SNAPSHOT.jar" "backend\\app.jar"
+                if errorlevel 1 exit /b 1
+            ) else (
+                echo Searching for another executable JAR...
+
+                powershell -NoProfile -ExecutionPolicy Bypass -Command "$j = Get-ChildItem 'backend\\ORSProject-10-JWT\\target' -Filter '*.jar' -Recurse | Where-Object { $_.Name -notmatch '-(sources|javadoc|original)\\.jar$' } | Select-Object -First 1; if ($j) { Copy-Item $j.FullName 'backend\\app.jar' -Force; Write-Host ('Copied JAR: ' + $j.FullName) } else { Write-Error 'No JAR file found'; exit 1 }"
+
+                if errorlevel 1 exit /b 1
+            )
+
+            if not exist "backend\\app.jar" (
+                echo ERROR: app.jar was not created
+                exit /b 1
+            )
+
+            echo SUCCESS: Backend JAR prepared
+            dir backend\\app.jar
+        '''
+    }
+}
+        stage('9. Create Docker Compose') {
             steps {
-                dir('frontend') {
-                    bat 'npm install --legacy-peer-deps'
-                    bat 'npm run build -- --output-path=dist/app'
+                writeFile file: 'docker-compose.yml', text: '''
+services:
+  mysql:
+    image: mysql:8.0
+    container_name: mysql-container
+    environment:
+      MYSQL_ROOT_PASSWORD: root
+      MYSQL_DATABASE: ors_p10
+    ports:
+      - "3307:3306"
+    volumes:
+      - mysql_data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-proot"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  backend:
+    build:
+      context: ./backend
+    container_name: backend-container
+    ports:
+      - "8080:8080"
+    depends_on:
+      mysql:
+        condition: service_healthy
+
+  frontend:
+    build:
+      context: ./frontend-docker
+    container_name: frontend-container
+    ports:
+      - "4200:80"
+    depends_on:
+      - backend
+
+volumes:
+  mysql_data:
+'''
+                echo 'Docker Compose file created'
+            }
+        }
+
+        stage('10. Create Backend Dockerfile') {
+            steps {
+                writeFile file: 'backend/Dockerfile', text: '''
+FROM eclipse-temurin:11-jre
+WORKDIR /app
+COPY app.jar app.jar
+EXPOSE 8080
+ENTRYPOINT ["java", "-jar", "app.jar"]
+'''
+            }
+        }
+
+        stage('11. Prepare Frontend Docker Files') {
+            steps {
+                script {
+                    def angularPath = fileExists('frontend/dist/app/index.html') ?
+                        'frontend/dist/app' : 'frontend/angular-10/dist/app'
+
+                    if (!fileExists("${angularPath}/index.html")) {
+                        error('Angular index.html missing')
+                    }
+
+                    bat 'if not exist frontend-docker mkdir frontend-docker'
+
+                    writeFile file: 'frontend-docker/Dockerfile', text: '''
+FROM nginx:alpine
+COPY . /usr/share/nginx/html
+EXPOSE 80
+'''
+                    writeFile file: 'frontend-docker/nginx.conf', text: '''
+server {
+    listen 80;
+    server_name localhost;
+    root /usr/share/nginx/html;
+    index index.html;
+
+    location / {
+        try_files $uri $uri/ /index.html;
+    }
+}
+'''
+                    bat "xcopy /E /I /Y \"${angularPath}\" \"frontend-docker\""
                 }
             }
         }
 
-        stage('Verify Angular Build') {
-            steps {
-                dir('frontend') {
-                    bat 'dir dist\\app'
-                }
-            }
-        }
-
-        stage('Build Spring Boot') {
-            steps {
-                dir('backend/ORSProject-10-JWT') {
-                    bat '"C:\\ProgramData\\Jenkins\\.jenkins\\tools\\hudson.tasks.Maven_MavenInstallation\\Maven\\bin\\mvn.cmd" clean package -DskipTests'
-                }
-            }
-        }
-
-        stage('Prepare Backend Jar') {
-            steps {
-                bat 'copy /Y backend\\ORSProject-10-JWT\\target\\ORSProject-10-JWT-0.0.1-SNAPSHOT.jar backend\\ORSProject-10-JWT-0.0.1-SNAPSHOT.jar'
-            }
-        }
-
-        stage('Create Docker Compose') {
+        stage('12. Verify Docker Files') {
             steps {
                 bat '''
-                    (
-                    echo services:
-                    echo.
-                    echo   frontend:
-                    echo     container_name: frontend-container
-                    echo     build:
-                    echo       context: ./frontend
-                    echo       dockerfile: Dockerfile
-                    echo     ports:
-                    echo       - "4200:80"
-                    echo     depends_on:
-                    echo       - backend
-                    echo     restart: unless-stopped
-                    echo.
-                    echo   backend:
-                    echo     container_name: backend-container
-                    echo     build:
-                    echo       context: ./backend
-                    echo       dockerfile: Dockerfile
-                    echo     ports:
-                    echo       - "8080:8080"
-                    echo     depends_on:
-                    echo       - mysql
-                    echo     restart: unless-stopped
-                    echo.
-                    echo   mysql:
-                    echo     container_name: mysql-container
-                    echo     image: mysql:8.0
-                    echo     environment:
-                    echo       MYSQL_ROOT_PASSWORD: root
-                    echo       MYSQL_DATABASE: ors_p10
-                    echo     ports:
-                    echo       - "3307:3306"
-                    echo     volumes:
-                    echo       - mysql_data:/var/lib/mysql
-                    echo     restart: unless-stopped
-                    echo.
-                    echo volumes:
-                    echo   mysql_data:
-                    ) > docker-compose.yml
-                '''
-            }
-        }
-
-        stage('Create Backend Dockerfile') {
-            steps {
-                bat '''
-                    (
-                    echo FROM eclipse-temurin:11-jdk
-                    echo.
-                    echo WORKDIR /app
-                    echo.
-                    echo COPY ORSProject-10-JWT-0.0.1-SNAPSHOT.jar app.jar
-                    echo.
-                    echo EXPOSE 8080
-                    echo.
-                    echo CMD ["java", "-jar", "app.jar"]
-                    ) > backend\\Dockerfile
-                '''
-            }
-        }
-
-        stage('Create Frontend Dockerfile') {
-            steps {
-                bat '''
-                    (
-                    echo FROM nginx:alpine
-                    echo.
-                    echo COPY dist/app/ /usr/share/nginx/html/
-                    echo.
-                    echo EXPOSE 80
-                    echo.
-                    echo CMD ["nginx", "-g", "daemon off;"]
-                    ) > frontend\\Dockerfile
-                '''
-            }
-        }
-
-        stage('Verify Docker Files') {
-            steps {
-                bat '''
-                    echo ==========================================
-                    echo VERIFY DOCKER FILES
-                    echo ==========================================
-
-                    if not exist docker-compose.yml (
-                        echo docker-compose.yml NOT FOUND
+                    if not exist docker-compose.yml exit /b 1
+                    if not exist backend\\Dockerfile exit /b 1
+                    if not exist frontend-docker\\Dockerfile exit /b 1
+                    if not exist frontend-docker\\index.html (
+                        echo ERROR: Frontend index.html missing
                         exit /b 1
                     )
-
-                    if not exist backend\\Dockerfile (
-                        echo Backend Dockerfile NOT FOUND
-                        exit /b 1
-                    )
-
-                    if not exist frontend\\Dockerfile (
-                        echo Frontend Dockerfile NOT FOUND
-                        exit /b 1
-                    )
-
-                    if not exist frontend\\dist\\app (
-                        echo Angular dist/app NOT FOUND
-                        exit /b 1
-                    )
-
-                    if not exist backend\\ORSProject-10-JWT-0.0.1-SNAPSHOT.jar (
-                        echo Backend JAR NOT FOUND
-                        exit /b 1
-                    )
-
-                    echo ALL DOCKER FILES VERIFIED
+                    echo All Docker files verified
                 '''
             }
         }
 
-        stage('Remove Old Containers') {
+        stage('13. Check Docker') {
             steps {
                 bat '''
-                    echo ==========================================
-                    echo REMOVE OLD CONTAINERS
-                    echo ==========================================
+                    docker --version
+                    if errorlevel 1 exit /b 1
 
-                    docker rm -f mysql-container 2>nul
-                    docker rm -f backend-container 2>nul
-                    docker rm -f frontend-container 2>nul
+                    docker compose version
+                    if errorlevel 1 exit /b 1
+                '''
+            }
+        }
 
+stage('14. Stop Old Containers') {
+    steps {
+        bat '''
+            echo ===== STOP OLD PROJECT CONTAINERS =====
+
+            docker rm -f mysql-container
+            docker rm -f backend-container
+            docker rm -f frontend-container
+
+            echo ===== OLD CONTAINERS REMOVED =====
+        '''
+    }
+}
+
+        stage('15. Build Docker Images') {
+            steps {
+                bat '''
+                    docker compose build
+                    if errorlevel 1 exit /b 1
+                '''
+            }
+        }
+
+stage('16. Run Containers') {
+    steps {
+        bat '''
+            echo ===== START DOCKER COMPOSE =====
+
+            docker compose up -d
+
+            if errorlevel 1 (
+                echo ERROR: Docker containers failed to start
+                exit /b 1
+            )
+
+            echo ===== CONTAINERS STARTED =====
+            docker compose ps
+        '''
+    }
+}
+
+        stage('17. Check Containers') {
+            steps {
+                bat '''
+                    docker compose ps
                     echo.
-                    echo OLD CONTAINERS REMOVED
+                    echo Application URLs:
+                    echo Angular: http://localhost:4200
+                    echo Spring Boot: http://localhost:8080
+                    echo MySQL: localhost:3307
                 '''
             }
         }
+    }
 
-        stage('Build Docker Images') {
-            steps {
-                bat '''
-                    echo ==========================================
-                    echo BUILD DOCKER IMAGES
-                    echo ==========================================
-
-                    docker compose -f docker-compose.yml build --no-cache
-                '''
-            }
+    post {
+        success {
+            echo 'Jenkins pipeline completed successfully!'
         }
-
-        stage('Run Containers') {
-            steps {
-                bat '''
-                    echo ==========================================
-                    echo RUN CONTAINERS
-                    echo ==========================================
-
-                    docker compose -f docker-compose.yml up -d --force-recreate
-                '''
-            }
-        }
-
-        stage('Check Containers') {
-            steps {
-                bat '''
-                    echo ==========================================
-                    echo CHECK CONTAINERS
-                    echo ==========================================
-
-                    docker ps
-
-                    echo.
-                    docker compose -f docker-compose.yml ps
-                '''
-            }
+        failure {
+            echo 'Pipeline failed. Open Console Output and check the first ERROR.'
         }
     }
 }
