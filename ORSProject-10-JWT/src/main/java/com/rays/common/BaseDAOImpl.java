@@ -1,6 +1,7 @@
 package com.rays.common;
 
 import java.sql.Timestamp;
+
 import java.util.Date;
 import java.util.List;
 
