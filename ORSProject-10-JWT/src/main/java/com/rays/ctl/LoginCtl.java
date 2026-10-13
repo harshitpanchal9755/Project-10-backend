@@ -126,11 +126,12 @@ public class LoginCtl extends BaseCtl<UserForm, UserDTO, UserServiceInt> {
 
 		if (flag == true) {
 			res.setSuccess(true);
-			res.addMessage("Your ForGot Password Has been Sent Successfull....!! ");
+			res.addMessage("Password sent to your email");
 			return res;
+			
 		} else {
 			res.setSuccess(false);
-			res.addMessage(" ! Email Could Not Be Sent.. !!");
+			res.addMessage("Login Id not found");
 		}
 		return res;
 	}

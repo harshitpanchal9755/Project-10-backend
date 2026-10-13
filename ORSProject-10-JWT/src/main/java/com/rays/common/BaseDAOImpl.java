@@ -67,31 +67,32 @@ public abstract class BaseDAOImpl<T extends BaseDTO> implements BaseDAOInt<T> {
 
 		Class<T> dtoClass = getDTOClass();
 
-		CriteriaBuilder builder = entityManager.getCriteriaBuilder();
+		CriteriaBuilder builder = entityManager.getCriteriaBuilder(); // query bana ke liye builder ka use karta  hai
 
-		CriteriaQuery<T> cq = builder.createQuery(dtoClass);
+		CriteriaQuery<T> cq = builder.createQuery(dtoClass);  // dto namm ki query bananta  hai 
 
-		Root<T> qRoot = cq.from(dtoClass);
+		Root<T> qRoot = cq.from(dtoClass); // kis entity/ table se data lena hai 
 
-		Predicate condition = builder.equal(qRoot.get(attribute), val);
+		Predicate condition = builder.equal(qRoot.get(attribute), val); // equaltiry consdtion banata hai 
+ 
+		cq.where(condition); // search condititon applyyu katna hai  // select * from st_user where login id = ?
 
-		cq.where(condition);
+		TypedQuery<T> query = entityManager.createQuery(cq);  
 
-		TypedQuery<T> query = entityManager.createQuery(cq);
+		List<T> list = query.getResultList(); // data basaes se matching record laata hai 
 
-		List<T> list = query.getResultList();
+		System.out.println("list size <<<<<<<<<<====> " + list.size());  // plhele matcjing record leta hai 
 
-		System.out.println("list size <<<<<<<<<<====> " + list.size());
-
-		T dto = null;
+		T dto = null; 
 
 		if (list.size() > 0) {
 			dto = list.get(0);
 		}
 
-		return dto;
+		return dto; // record return karta ha nahi milta hai to null deta ahi 
 	}
-
+   
+	//
 	protected TypedQuery<T> createCriteria(T dto, UserContext userContext) {
 
 		CriteriaBuilder builder = entityManager.getCriteriaBuilder();
@@ -109,6 +110,7 @@ public abstract class BaseDAOImpl<T extends BaseDTO> implements BaseDAOInt<T> {
 		TypedQuery<T> query = entityManager.createQuery(cq);
 
 		return query;
+		
 	}
 
 	public List search(T dto, int pageNo, int pageSize, UserContext userContext) {

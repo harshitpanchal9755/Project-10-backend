@@ -9,12 +9,14 @@ import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
 
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.web.authentication.WebAuthenticationDetailsSource;
 import org.springframework.stereotype.Component;
 import org.springframework.web.filter.OncePerRequestFilter;
+import org.springframework.web.servlet.HandlerExceptionResolver;
 
 import com.rays.common.UserContext;
 import com.rays.common.UserContextHolder;
@@ -49,6 +51,11 @@ public class JWTRequestFilter extends OncePerRequestFilter {
 	@Autowired
 	private UserServiceInt userService;
 
+	@Autowired
+	@Qualifier("handlerExceptionResolver")
+	private HandlerExceptionResolver resolver;
+
+	
 	/**
 	 * This method is executed once per request. It processes JWT token validation
 	 * and authentication setup.
@@ -98,9 +105,11 @@ public class JWTRequestFilter extends OncePerRequestFilter {
 				UserContextHolder.setContext(context);
 			} catch (Exception e) {
 				// Token is invalid or expired
-				response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
-				response.setContentType("application/json");
-				response.getWriter().write(e.getMessage());
+//				response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
+//				response.setContentType("application/json");
+//				response.getWriter().write(e.getMessage());
+				
+				resolver.resolveException(request, response, null, e);
 				return;
 			}
 		}
