@@ -2,6 +2,7 @@ package com.rays.common;
 
 import java.sql.Timestamp;
 
+
 import javax.persistence.Column;
 import javax.persistence.GeneratedValue;
 import javax.persistence.Id;
