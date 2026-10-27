@@ -32,12 +32,12 @@ public class FoodOrderForm extends BaseForm {
 		this.customerName = customerName;
 	}
 
-	public String getFoodIntem() {
-		return foodIntem;
+	public String getFoodItem() {
+		return foodItem;
 	}
 
-	public void setFoodIntem(String foodIntem) {
-		this.foodIntem = foodIntem;
+	public void setFoodIntem(String foodItem) {
+		this.foodItem = foodItem;
 	}
 
 	public int getQuantity() {
